@@ -1,0 +1,22 @@
+name: Release
+
+on:
+  push:
+    branches: [main, "v*"]
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Release
+    runs-on: [self-hosted, general-ubuntu]
+    env:
+      FOTINGO_JIRA_ROOT: ${{ secrets.FOTINGO_JIRA_ROOT }}
+      FOTINGO_JIRA_USER_TOKEN: ${{ secrets.FOTINGO_JIRA_USER_TOKEN }}
+      FOTINGO_JIRA_USER_LOGIN: ${{ secrets.FOTINGO_JIRA_USER_LOGIN }}
+    steps:
+      - uses: open-turo/actions-node/release@v3
+        with:
+          extra-plugins: |
+            @open-turo/semantic-release-config@1.3.0
+          github-token: ${{ secrets.TURO_GITHUB_TOKEN }}
+          npm-auth-token: ${{ secrets.ARTIFACTORY_NPM_AUTH_TOKEN }}

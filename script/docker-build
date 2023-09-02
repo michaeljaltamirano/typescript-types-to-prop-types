@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+# Extract package name and version from package.json
+PACKAGE_VERSION=$(cat package.json | jq -r ".version")
+PACKAGE_NAME=$(cat package.json | jq -r ".name")
+
+if [ "$PACKAGE_NAME" == "__PROJECT_NAME__" ]; then
+  echo "Trying to build image for the template project. Aborting"
+  exit 0;
+fi
+
+# Get Git build info
+GIT_HASH=$GITHUB_SHA
+GIT_BRANCH=${GITHUB_REF##*/}
+GIT_HASH_SHORT=${GIT_HASH:0:7}
+
+# Set docker image name and tags
+DOCKER_IMAGE_NAME=turo/${PACKAGE_NAME}
+DOCKER_IMAGE_TAG_HASH=${DOCKER_IMAGE_NAME}:$GIT_HASH_SHORT
+DOCKER_IMAGE_TAG=${DOCKER_IMAGE_NAME}:$PACKAGE_VERSION
+DOCKER_IMAGE_TAG_LATEST=${DOCKER_IMAGE_NAME}:latest
+
+# If not main, add a tag with the branch name and git hash
+if [ "$GIT_BRANCH" != "main" ]; then
+  DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG}-${GIT_BRANCH/\//-}_"$GIT_HASH_SHORT"
+fi
+
+# Store NPM auth so it can be used inside Dockerfile
+echo "${NPM_AUTH_TOKEN}" > package/npm_auth_token
+
+# Build the image
+DOCKER_BUILDKIT=1 docker build \
+  --pull \
+  --build-arg PACKAGE_VERSION=$PACKAGE_VERSION \
+  --secret id=npm_auth_token,src=npm_auth_token \
+  -t "$DOCKER_IMAGE_TAG_HASH" \
+  .
+
+docker tag "$DOCKER_IMAGE_TAG_HASH" "$DOCKER_IMAGE_TAG"
+docker push "$DOCKER_IMAGE_TAG_HASH"
+docker push "$DOCKER_IMAGE_TAG"
+
+# Tag the image with latest if main branch
+if ([ "$GIT_BRANCH" == "main" ]) && [ "$GENERATE_LATEST_TAG" == "true" ]; then
+  docker tag "$DOCKER_IMAGE_TAG_HASH" $DOCKER_IMAGE_TAG_LATEST
+  docker push $DOCKER_IMAGE_TAG_LATEST
+fi

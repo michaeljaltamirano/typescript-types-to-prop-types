@@ -1,0 +1,17 @@
+name: Security scan
+
+on:
+  pull_request: {}
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+jobs:
+  security-scan:
+    name: Security scan
+    runs-on: [self-hosted, general-ubuntu]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: open-turo/actions-security/static-analysis/semgrep@v1
+        with:
+          semgrep-app-token: ${{ secrets.SEMGREP_APP_TOKEN }}

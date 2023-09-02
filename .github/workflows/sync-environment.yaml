@@ -1,0 +1,65 @@
+name: Sync environment from template repo
+
+on:
+  schedule:
+    - cron: "30 10 * * 1" # “At 10:30 on Monday”
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Synchronize scripts from template repo
+    runs-on: [self-hosted, general-ubuntu]
+    if: github.repository != 'turo/typescript-template'
+    env:
+      NPM_AUTH_TOKEN: ${{ secrets.ARTIFACTORY_NPM_AUTH_TOKEN }}
+
+    steps:
+      - name: Fetch this repository
+        uses: actions/checkout@v3
+
+      - name: Force remove previous temp-typescript-template directory if it exists
+        run: |
+          if [[ -d temp-typescript-template ]]; then
+            rm -rf temp-typescript-template
+          fi
+
+      - name: Fetch the module template repository so that its sync-environment script is accessible here
+        uses: actions/checkout@v3
+        with:
+          repository: turo/typescript-template
+          path: temp-typescript-template
+          ref: main
+          token: ${{ secrets.TURO_GITHUB_TOKEN }}
+
+      - name: Setup tools
+        uses: open-turo/action-setup-tools@v1
+
+      - name: Sync scripts from typescript-template repository
+        run: |
+          ./temp-typescript-template/script/sync-environment .
+
+      - name: Remove no longer needed temp-typescript-template directory
+        if: always()
+        run: rm -rf temp-typescript-template
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v5
+        id: cpr
+        with:
+          branch: sync-environment-pr
+          token: ${{ secrets.TURO_GITHUB_TOKEN }}
+          base: main
+          commit-message: "ci: synchronize scripts from turo/typescript-template"
+          title: "[bot] synchronize template scripts"
+          body: |
+            Synchronize scripts with [turo/typescript-template][1]
+
+            [1]: https://github.com/turo/typescript-template
+          labels: |
+            automated
+            auto-merge
+
+      - name: Check outputs
+        run: |
+          echo "Pull Request Number - ${{ steps.cpr.outputs.pull-request-number }}"
+          echo "Pull Request URL - ${{ steps.cpr.outputs.pull-request-url }}"
